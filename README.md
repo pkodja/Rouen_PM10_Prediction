@@ -29,7 +29,8 @@ area are considered. For this data modelization, We are considering the
 details,[please check this
 link](https://rdrr.io/cran/VSURF/man/PM10.html)
 
-2.  Objective Elaborate a statistical model to predict the PM10
+2.  Objective
+   Elaborate a statistical model to predict the PM10
     pollution in Rouen area (France) in order to determine its negative
     impact on people.
 
