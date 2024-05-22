@@ -1,0 +1,331 @@
+---
+title: "DATA SCIENCE STUDY: Prediction of PM10 pollution in the Rouen region (France) with VSURF and Cart algorithms"
+author: "Constant Patrice A. KODJA A./ AI Engineer & Data Scientist"
+date: "`r Sys.Date()`"
+output:
+  github_document: default
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r}
+#library(VIM)
+library(VSURF)
+library(rpart)
+```
+
+***
+
+## Executive Summary
+
+1. Introduction
+
+  The PM10 (particles with a diameter of 10 micrometres or less): these particles are small enough to pass through the throat and nose and        enter the lungs. Once inhaled, these particles can affect the heart and lungs and cause serious health effects. [Particulate matter (PM10 and PM2.5) - NSW         Health](https://www.health.nsw.gov.au/environment/air/Pages/particulate-matter.aspx#:~:text=PM10%20(particles%20with%20a%20diameter,PM2.).
+
+  Six different monitoring stations of the Rouen (Haute Normandie, France) area are considered. For this data modelization, We are considering the **gcm station** which is located in an industrial area. For more details,[please check this link](https://rdrr.io/cran/VSURF/man/PM10.html)
+
+
+2. Objective
+      Elaborate a statistical model to predict the PM10 pollution in Rouen area (France) in order to determine its negative impact on people.
+
+
+3. Methodology
+  
+  The target or response variable is numerical so regression prediction model is used.
+      As there are missing data and to avoid suppression observations, we will keep the actual data frame and will use Decision Tree Algorithm which copes with NA values.
+      
+  Before to use the Decision Tree, the model Variable Selection is conducted with Random Forest function **VSURF**-Variable Selection Using Random Forest. This function runs three processes-Elimination, Interpretation and Prediction,in order to reduce the number of explanation variables (16 in total) to the minimum possible number to run the final decision tree model and get accurate result.
+      
+  The Decision Tree algorithm (**rpart**) will use the selected explanatory variables to provide the final model.
+      
+  As both Interpretation and Prediction steps provide selected explonatory variables. The two sets of variables will be used separately with Cart algorithm -Decision Tree to provide Two final models which will be compared to each other  via the Cross-Validation Error testing in order to choose the best one with the minimum error value.
+      
+  In order to get accurate models, the data will be shared in Training and Test Data. Both models will be trained on the same Training Data and the prediction will be run on the Test Data
+      
+      
+  **Data Information:**
+      
+  * Data source:F.-X. Jollois, J.-M. Poggi, B. Portier, Three non-linear statistical methods to analyze PM10 pollution in Rouen area.
+                  CSBIGS 3(1): 1-17, 2009
+                  
+      * PM10: Real-world data on PM10 pollution in Rouen area, France (In VSURF: Variable Selection Using Random Forests)
+      
+      
+  **Variable Description:**
+      
+  **Target or Response Variable:**
+  PM10: Numerical type
+    Daily mean concentration of PM10, in μ $g/m^3$
+
+  **Explanatory Variables:**
+  SO2
+    Daily mean concentration of SO2, in μ g/m^3
+
+  T.min, T.max, T.moy
+    Daily minimum, maximum and mean temperature, in degree Celsius
+
+  DV.maxvv, DV.dom
+    Daily maximum speed and dominant wind direction, in degree (for wind direction, 0 degree corresponds to north)
+
+  VV.max, VV.moy
+    Daily maximum and mean wind speed, in  m/s
+
+  PL.som
+    Daily rainfall, in mm
+
+  HR.min, HR.max, HR.moy
+    Daily minimum, maximum and mean relative humidity, in %
+
+  PA.moy
+    Daily mean air pressure, in hPa
+
+  GTrouen, GTlehavre
+    Daily temperature gradient, in degree Celsius
+        
+      
+4. Findings:
+      
+  * Both algorithms, Random Forest and Decision Tree, run entirely on a data frame containing missing data without being blocked.
+      
+  * Prediction step process provides less number of explanatory variables the interpretation step.
+      
+  * Prediction model is the best with the minimum cross-validation error value
+    
+    
+5. Recommendations:
+
+  The Cart Algorithm in R is unstable so better associate it with Bagging or Random Forest algorithm. This is why we use VSURF in this study.
+  
+  If VSURF is used like here, after Threshold or Elimination step check if Interpretation step or if Prediction step selected variables will provide the best final model.
+  
+  With Big Data with thousands of explanatory variables and depending on the system's operating capacity, avoid using VSURF in its entirety by running all the three processes at the same time. Better to try the Threshold step first for variable elimination and choose to proceed to the Interpretation step or the prediction's one or both.
+
+  
+6. Conclusion:
+  
+  VSURF combined with the Cart algorithm handles correctly data with missing data modeling and provides good results.
+  
+  Data have to be preprocessed and divided into training and test data
+  The Modeling process must be adapted to the capacity of the system.
+  
+  Most algorithms do not support missing data but Cart and Random Forest do and simply ignore the affected observations.
+
+
+-------------------------------------------------------------------------------
+
+# Variable Selection Step:
+
+Getting Pollution data from VSURF package:
+
+```{r}
+DataPol=VSURF::gcm
+head(DataPol)
+```
+ As PM10 is quantitative response variable, we will compute regression modelization.
+
+
+## Dimension of the data frame "DataPol"
+```{r}
+dim(DataPol)
+```
+
+Separation of the target variable from the explanatory variables
+```{r}
+# Target variable
+Ypm10 = DataPol[,1]
+
+# Explanatory variables
+Xpm10 = DataPol[,-1]
+#Xpm10
+#Ypm10
+```
+
+***
+
+## With NA in explanatory variables and response variable, linear modeling cannot easily be conducted as seen below:
+ color Red represents NA
+
+```{r}
+VIM::aggr(Ypm10)
+```
+
+```{r}
+VIM::aggr(Xpm10)
+```
+
+VSURF and Cart-Decision Tree algorithms work on data presenting missing values
+
+## Data separation in Learning (80% of the complete data) and in test (20%) data:
+```{r}
+#lrate=nrow(DataPol)*0.8 = 876.8 #Learning data proportion
+lrate=876
+learnSamp=sample(1:nrow(DataPol),lrate)
+lrate  #80% of the raw data
+nrow(DataPol)-lrate   #Test data proportion
+#learnSamp
+```
+
+We will use 876 for learning samples and 220 for the test samples
+```{r}
+LPM10datX=Xpm10[learnSamp,]; LPM10datY=Ypm10[learnSamp]
+TPM10datX=Xpm10[-learnSamp,]; TPM10datY=Ypm10[-learnSamp]
+```
+
+***
+
+## The three steps of variable selection: Thresholding, interpretation and prediction are performed together here
+
+```{r}
+PM10varsel <-VSURF(LPM10datY~.,data=LPM10datX, na.action=na.omit)
+```
+###Above steps interpretation:
+
+ - After the Thresholding step: 15 explanatory variables are selected within 16 only one is elimited then;
+ - After the Interpretation step: 11 explanatory variable remained from the 15
+ - After the Prediction step: 8 explanatory variable are selected within the 11 (For this one check below "PM10varsel[[3]]")
+ 
+ ***
+ 
+ Function to treat mission value-NA is set by default to **omit** as seen below:
+
+```{r}
+PM10varsel$na.action
+```
+***
+
+The different selections of VSURF step variables are displayed in the order Threshold, Interpretation and Prediction:
+```{r}
+PM10varsel[[1]]
+PM10varsel[[2]]
+PM10varsel[[3]]
+```
+### Above results description:
+A total of 8 explanatory variables The VSURF processes the prediction step: 1 4 15 8 5 6 13 9
+As said before they are 11 for Interpretation step:  1 4 15 3 2 8 14 5 6 13 9 and
+15 after the first step-Thresholding: 1  4 15  3  2  8 14  5  6 13  9 10 12  7 11
+
+***
+
+## List of 15 first explanatory variables of the above Threshold step:
+```{r}
+names(LPM10datX[1,1:15])
+```
+
+## Renaming of explanatory variables to avoid using numbers as variable names
+```{r}
+colnames(LPM10datX)<- c("V1","V2","V3","V4","V5","V6","V7","V8","V8","V9","V10","V12","V13","V14","V15")
+head(LPM10datX)
+```
+
+***
+
+# Modelling steps
+
+## Step1: Interpretation model computation based on the above interpretation step result:
+
+VSURF Interpretation selected variable: 1 4 15 3 2 8 14 5 6 13 9.
+Decision Tree Cart algo is run with them
+```{r}
+PM10RegTree1 <- rpart(LPM10datY~V1+V4+V15+V3+V2+V8+V14+V5+V6+V13+V9,data=LPM10datX,minsplit=2,cp=10^(-9))
+
+```
+
+## The maximal Tree for interpretation step
+```{r}
+#PM10RegTree1
+```
+The above **rpart()** result displayed "n=865 for Root split out of 876 observations so 11 observations were deleted due to missingness" as we don't know deleted individuals we cannot compute the **empirical risk** in order to check if the model Tree is maximal or not.
+
+For learning data target column PM10 we have 876 and for the **predict()** we get 865 as 11 were deleted
+
+So below is not possible to compute the empirical risk or learning error. We will suppose that with the CP=10^(-9) we have the maximal tree and compute the pruning process in order to get final tree.
+```{r}
+length(LPM10datY)
+PM10pred1 = predict(PM10RegTree1)
+length(PM10pred1)
+#PM10learnError= 1/nrow(LPM10datX)*sum((PM10pred1-LPM10datY)^2)
+#PM10learnError
+```
+
+### Final Tree computation function for the interpretation step
+```{r}
+finalCart=function(T)
+{
+  P=printcp(T)
+  CV=P[,4]
+  a=which(CV==min(CV))
+  s=P[a,4]+P[a,5]
+  ss=min(s)
+  b=which(CV<=ss)
+  d=b[1]
+  Tfinal=prune(T,cp=P[d,1])
+  finalCart=Tfinal
+}
+```
+
+
+### Function using prune() to get Final Tree ("Best" Tree from the Maximal Tree TreeClass1) for the interpretation step
+```{r}
+PM10Trf1=finalCart(PM10RegTree1)
+```
+
+***
+
+## Step2: Prediction model computation based on the above Prediction step result:
+
+VSURF Prediction selected variable: 1 4 15 8 5 6 13 9.
+Decision Tree Cart algo is run with them
+```{r}
+PM10RegTree2 <- rpart(LPM10datY~V1+V4+V15+V8+V5+V6+V13+V9,data=LPM10datX,minsplit=2,cp=10^(-9))
+
+```
+
+
+```{r}
+#PM10RegTree2
+```
+
+
+## Maximal tree checking (Prediction Step): if 0 is gotten, then the tree is maximal
+```{r}
+length(LPM10datY)
+PM10pred2 = predict(PM10RegTree2)
+length(PM10pred2)
+#PM10learnError= 1/nrow(LPM10datX)*sum((LPM10datY-PM10pred2)^2)
+#PM10learnError
+```
+
+
+## Function using prune() to get Final Tree ("Best" Tree from the Maximal Tree TreeClass2) For the Prediction step
+
+```{r}
+PM10Trf2=finalCart(PM10RegTree2)
+```
+
+***
+
+# Model Selection between Interpretation and Prediction models computed above
+
+Cross-Validation Error Test is used to compute interpretation and prediction model prediction error. The minimum value indicates the best model.
+
+## Both final trees (PM10Trf1 and PM10Trf2) comparison with Cross-Validation error
+```{r}
+PM10Trf1$cptable
+```
+
+```{r}
+PM10XerInd1=which(PM10Trf1$cptable[,4]==min(PM10Trf1$cptable[,4]))
+PM10XerInd1=PM10XerInd1[1]
+PM10Trf1Xerr=PM10Trf1$cptable[PM10XerInd1,4] + PM10Trf1$cptable[PM10XerInd1,5]
+PM10Trf1Xerr
+```
+
+```{r}
+PM10XerInd2=which(PM10Trf2$cptable[,4]==min(PM10Trf2$cptable[,4]))
+PM10XerInd2=PM10XerInd2[1]
+PM10Trf2Xerr=PM10Trf2$cptable[PM10XerInd2,4] + PM10Trf2$cptable[PM10XerInd2,5]
+PM10Trf2Xerr
+```
+### With the two error results above, The prediction model seems the best
+
